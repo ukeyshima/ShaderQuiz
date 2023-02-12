@@ -1,0 +1,60 @@
+#pragma kernel Init
+#pragma kernel Horizontal
+#pragma kernel Vertical
+
+#include "Packages/jp.keijiro.noiseshader/Shader/SimplexNoise2D.hlsl"
+
+Texture2D<float4> _Input;
+RWTexture2D<float4> _Output;
+StructuredBuffer<float> _Weight;
+
+[numthreads(8, 8, 1)]
+void Init (uint3 id : SV_DispatchThreadID)
+{
+    uint w, h;
+    _Output.GetDimensions(w, h);
+
+    float2 uv = id.xy / float2(w, h);
+
+    float c = SimplexNoise(uv + float2(2.0, 2.1));
+    c = step(c, 0.0);
+    _Output[id.xy] = float4(c, c, c, 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void Horizontal (uint3 id : SV_DispatchThreadID)
+{
+    uint w, h;
+    _Input.GetDimensions(w, h);
+
+    float3 color = _Input[id.xy].rgb * _Weight[0];
+    [unroll]
+    for(int i = 1; i < 5; i++)
+    {
+        uint r = min(id.x + i, w - 1);
+        uint l = max(id.x - i, 0);
+
+        color += _Input[uint2(r, id.y)].rgb * _Weight[i];
+        color += _Input[uint2(l, id.y)].rgb * _Weight[i];
+    }
+    _Output[id.xy] = float4(color, 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void Vertical (uint3 id : SV_DispatchThreadID)
+{
+    uint w, h;
+    _Input.GetDimensions(w, h);
+
+    float3 color = _Input[id.xy].rgb * _Weight[0];
+    [unroll]
+    for(int i = 1; i < 5; i++)
+    {
+        uint u = min(id.y + i, w - 1);
+        uint d = max(id.y - i, 0);
+
+        color += _Input[uint2(id.x, u)].rgb * _Weight[i];
+        color += _Input[uint2(id.x, d)].rgb * _Weight[i];
+    }
+    _Output[id.xy] = float4(color, 1.0);
+}
